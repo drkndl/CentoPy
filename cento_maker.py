@@ -1,61 +1,55 @@
-import csv 
-import pandas as pd
+### Author: @drkndl
+### Note: Some parts of this code were taken from https://github.com/aparrish/gutenberg-poetry-corpus/blob/master/quick-experiments.ipynb
+
+import gzip, json
 import random
-
-# List to store all the poems and related metadata (titles, poets, tags)
-rows = []
-
-with open("PoetryFoundationData.csv", 'r') as file:
-
-    csvreader = csv.reader(file)		# Reading the file
-    header = next(csvreader) 			# Saving the column names to header
-
-    for row in csvreader:
-        rows.append(row) 				# Saving the poems and related metadata
+import re
 
 
-# Splitting the poems into multiple lines by iterating through each poem
-for entry in rows:
-
-	entry[2].replace("\n", "\n\n") 				
-	lines = entry[2].split("\n\n")
-	lines = [y for y in lines if y != '']		# Removing blank lines from the poem
-	entry.insert(2, lines) 						# Inserting the line-by-line split poem into the original list
-	del entry[3]  								# Removing old unsplit poem
-	entry.insert(3, len(lines))  				# Inserting a new column indicating the number of lines in the poem
+# List to store all the lines of poetry in the corpus
+all_lines = []
+for line in gzip.open("gutenberg-poetry-v001.ndjson.gz"):
+    all_lines.append(json.loads(line.strip()))
 
 
-header.insert(3, 'Poem Lines') 			# Inserting title for the new column of poem lines created above
-print(header)
-
-# Saving list as a pandas dataframe
-df = pd.DataFrame(rows)
-df.columns = header
-
-# Removing poems with no lines (possibly a glitch on the Poetry Foundation website)
-df.drop(df.index[df['Poem Lines'] == 0], inplace=True)
-lines = df.groupby('Poem Lines')
-# print(lines.first())
-
-num_lines = 4 			# Required number of lines in the cento
-
-
-def cento(data):
+def random_poem(numlines):
 	"""
-	Creates a new line in the cento by randomly picking a poem out of the dataframe, and randomly picking a line from the poem
-
-	Parameters:
-	data:  		Dataframe of poems that consists of the following columns- index, Title, Poem, Poem Lines, Poet, Tags
-
-	Returns a random line from a random poem
+	Creates a random poem with 'numlines' number of lines from the corpus
 	"""
-
-	random_poem = random.randint(0, len(data)-1)
-	random_line = random.randint(0, data['Poem Lines'][random_poem]-1)
 	
-	return data['Poem'][random_poem][random_line]
+	dics = random.sample(all_lines, numlines)
+	lines = [l['s'] for l in dics]
+	for line in lines:
+		print(line)
 
-# Creating the cento
-for n in range(num_lines):
-	line = cento(df)
-	print(line)
+
+def find_theme(theme):
+	"""
+	Finds all lines in poem that contain the 'theme' word and returns a list of these lines
+	"""
+	
+	search_term = r'\b'+theme+r'\b'
+	theme_lines = [line['s'] for line in all_lines if re.search(search_term, line['s'], re.I)]	
+	return theme_lines
+
+
+def pretty_print(theme_lines, theme):
+
+	longest = max([len(x) for x in theme_lines])      # find the length of the longest line
+	center = longest - len(theme)                     # and use it to create a "center" offset that will work for all lines
+	search_term = r'\b'+theme+r'\b'
+
+	sorted_theme_lines = sorted(
+	    [line for line in theme_lines if re.search(search_term, line)],          # only lines with word following
+	    key=lambda line: line[re.search(search_term, line).end():])              # sort on the substring following the match
+
+	for line in sorted_theme_lines: 
+	    offset = center - re.search(search_term, line, re.I).start()
+	    print((" "*offset)+line)                                                 # left-pad the string with spaces to align on "flower"
+
+
+# moon_lines = find_theme('moon')
+# pretty_print(moon_lines, 'moon')
+
+num_lines = 8 			# Required number of lines in the cento
+random_poem(num_lines)
